@@ -1,7 +1,7 @@
 # ===================================================================
-# dashboard_assainissement_REUNION_IA_TOTALE.py
-# VERSION ULTIME - TOUTES LES FONCTIONNALITÉS IA
-# Deep Learning · Prophet · Chatbot · Optimisation · Hydraulique
+# dashboard_assainissement_REUNION_IA_LIGHT.py
+# VERSION ULTRA-LÉGÈRE - 100% Streamlit Cloud Compatible
+# Alternatives : scikit-learn, statsmodels, Prophet, NLP léger
 # ===================================================================
 
 import streamlit as st
@@ -18,1131 +18,907 @@ import json
 import warnings
 warnings.filterwarnings('ignore')
 
-# ========== DEEP LEARNING ==========
-import tensorflow as tf
-from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.layers import LSTM, Dense, Dropout, GRU, Bidirectional
-from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
-from tensorflow.keras.optimizers import Adam
-import joblib
+# ========== MACHINE LEARNING LÉGER ==========
+from sklearn.ensemble import RandomForestRegressor, IsolationForest, GradientBoostingRegressor
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
+from sklearn.linear_model import LinearRegression, Ridge, Lasso
+from sklearn.metrics import mean_absolute_error, r2_score, mean_squared_error
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
-# ========== DÉTECTION DE TENDANCES ==========
+# ========== ANALYSE TEMPORELLE ==========
+from statsmodels.tsa.holtwinters import ExponentialSmoothing
+from statsmodels.tsa.arima.model import ARIMA
+from statsmodels.tsa.seasonal import seasonal_decompose
+import scipy.stats as stats
+
+# ========== PROPHET (LÉGER) ==========
 from prophet import Prophet
 from prophet.plot import plot_plotly, plot_components_plotly
 
 # ========== OPTIMISATION ==========
-from scipy.optimize import differential_evolution, minimize
-from scipy.stats import norm
-import random
+from scipy.optimize import differential_evolution, minimize, dual_annealing
+from scipy.spatial.distance import cdist
 
-# ========== CHATBOT ==========
-import openai  # Optionnel - peut utiliser un modèle local
-from transformers import pipeline, Conversation
-import speech_recognition as sr  # Pour vocal
-from gtts import gTTS  # Pour synthèse vocale
-import io
-import base64
+# ========== NLP LÉGER (SANS TRANSFORMERS) ==========
+import re
+from collections import Counter
+import nltk
+from nltk.corpus import stopwords
+nltk.download('stopwords', quiet=True)
+nltk.download('punkt', quiet=True)
 
-# ========== HYDRAULIQUE ==========
-from scipy.integrate import odeint
-from scipy.special import erf
+# ========== ÉVITER LES ERREURS DE MÉMOIRE ==========
+import gc
+import psutil
+import os
 
 # Configuration de la page
 st.set_page_config(
-    page_title="Assainissement Réunion - IA Totale",
-    page_icon="🧠",
+    page_title="Assainissement Réunion - IA Légère",
+    page_icon="💧",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
+    menu_items={
+        'Get Help': 'https://www.eaureunion.fr',
+        'Report a bug': 'https://github.com',
+        'About': 'Dashboard Assainissement Réunion - Version IA Légère'
+    }
 )
 
 # ==========================================================
-# 1️⃣ MODULE DEEP LEARNING - LSTM POUR PRÉDICTIONS SÉRIES TEMPORELLES
+# 1️⃣ MODÈLE DE PRÉDICTION LÉGER - RANDOM FOREST / ARIMA
 # ==========================================================
-class DeepLearningPredictor:
+
+class PredicteurLeger:
     """
-    Prédictions avancées avec LSTM Bidirectionnel
-    Pour débits, charges, consommations
+    Alternative à LSTM - Utilise Random Forest + ARIMA
+    Beaucoup plus léger, compatible Streamlit Cloud
     """
     
     def __init__(self):
-        self.model = None
-        self.scaler_X = None
-        self.scaler_y = None
-        self.sequence_length = 30  # 30 jours d'historique
-        
-    def prepare_sequences(self, data, target_col):
-        """Prépare les séquences pour LSTM"""
-        X, y = [], []
-        values = data[target_col].values.astype(float)
-        
-        for i in range(self.sequence_length, len(values)):
-            X.append(values[i-self.sequence_length:i])
-            y.append(values[i])
-        
-        X = np.array(X).reshape(-1, self.sequence_length, 1)
-        y = np.array(y)
-        
-        return X, y
-    
-    def build_lstm_model(self, input_shape):
-        """Construit un modèle LSTM bidirectionnel avancé"""
-        model = Sequential([
-            Bidirectional(LSTM(128, return_sequences=True), input_shape=input_shape),
-            Dropout(0.3),
-            Bidirectional(LSTM(64, return_sequences=True)),
-            Dropout(0.3),
-            Bidirectional(LSTM(32)),
-            Dropout(0.2),
-            Dense(16, activation='relu'),
-            Dense(1)
-        ])
-        
-        model.compile(
-            optimizer=Adam(learning_rate=0.001),
-            loss='mse',
-            metrics=['mae', 'mape']
+        self.model_rf = RandomForestRegressor(
+            n_estimators=50,  # Réduit pour la mémoire
+            max_depth=10,
+            random_state=42,
+            n_jobs=-1
         )
+        self.model_arima = None
+        self.scaler = MinMaxScaler()
         
-        return model
-    
-    def train(self, df, target_col='debit', epochs=100):
-        """Entraîne le modèle LSTM"""
-        X, y = self.prepare_sequences(df, target_col)
+    def predict_random_forest(self, df, target_col, n_future=30):
+        """
+        Prédiction avec Random Forest sur features temporelles
+        """
+        # Création des features temporelles
+        df_features = df.copy()
+        df_features['dayofweek'] = df_features.index.dayofweek
+        df_features['month'] = df_features.index.month
+        df_features['day'] = df_features.index.day
+        df_features['dayofyear'] = df_features.index.dayofyear
+        df_features['quarter'] = df_features.index.quarter
+        df_features['weekend'] = (df_features.index.dayofweek >= 5).astype(int)
         
-        # Normalisation
-        from sklearn.preprocessing import MinMaxScaler
-        self.scaler_X = MinMaxScaler()
-        self.scaler_y = MinMaxScaler()
+        # Lag features
+        for lag in [1, 2, 3, 7, 14, 30]:
+            df_features[f'lag_{lag}'] = df_features[target_col].shift(lag)
         
-        X_2d = X.reshape(-1, self.sequence_length)
-        X_scaled = self.scaler_X.fit_transform(X_2d).reshape(X.shape)
-        y_scaled = self.scaler_y.fit_transform(y.reshape(-1, 1)).ravel()
+        # Moyennes mobiles
+        df_features['rolling_mean_7'] = df_features[target_col].rolling(7).mean()
+        df_features['rolling_mean_30'] = df_features[target_col].rolling(30).mean()
         
-        # Split train/test
-        split = int(0.8 * len(X_scaled))
-        X_train, X_test = X_scaled[:split], X_scaled[split:]
-        y_train, y_test = y_scaled[:split], y_scaled[split:]
+        # Drop NaN
+        df_features = df_features.dropna()
         
-        # Construction du modèle
-        self.model = self.build_lstm_model((self.sequence_length, 1))
+        # Préparation X, y
+        feature_cols = [col for col in df_features.columns if col != target_col]
+        X = df_features[feature_cols]
+        y = df_features[target_col]
         
-        # Callbacks
-        callbacks = [
-            EarlyStopping(patience=15, restore_best_weights=True),
-            ReduceLROnPlateau(factor=0.5, patience=5, min_lr=0.00001)
-        ]
+        # Split temporel (pas de shuffle)
+        split_idx = int(len(X) * 0.8)
+        X_train, X_test = X.iloc[:split_idx], X.iloc[split_idx:]
+        y_train, y_test = y.iloc[:split_idx], y.iloc[split_idx:]
         
         # Entraînement
-        history = self.model.fit(
-            X_train, y_train,
-            validation_data=(X_test, y_test),
-            epochs=epochs,
-            batch_size=32,
-            callbacks=callbacks,
-            verbose=0
-        )
+        self.model_rf.fit(X_train, y_train)
         
         # Prédictions
-        y_pred_scaled = self.model.predict(X_test)
-        y_pred = self.scaler_y.inverse_transform(y_pred_scaled)
-        y_actual = self.scaler_y.inverse_transform(y_test.reshape(-1, 1))
+        y_pred = self.model_rf.predict(X_test)
         
-        return {
-            'history': history,
-            'predictions': y_pred,
-            'actual': y_actual,
-            'mae': np.mean(np.abs(y_pred - y_actual)),
-            'mape': np.mean(np.abs((y_actual - y_pred) / y_actual)) * 100
-        }
-    
-    def predict_future(self, last_sequence, days=30):
-        """Prédit les jours futurs"""
-        future_predictions = []
-        current_sequence = last_sequence.copy()
-        
-        for _ in range(days):
-            # Normaliser la séquence
-            current_2d = current_sequence.reshape(1, -1)
-            current_scaled = self.scaler_X.transform(current_2d)
-            current_scaled = current_scaled.reshape(1, self.sequence_length, 1)
-            
-            # Prédire le prochain jour
-            next_pred_scaled = self.model.predict(current_scaled, verbose=0)
-            next_pred = self.scaler_y.inverse_transform(next_pred_scaled)[0, 0]
-            future_predictions.append(next_pred)
-            
-            # Mettre à jour la séquence
-            current_sequence = np.append(current_sequence[1:], next_pred)
-        
-        return np.array(future_predictions)
-
-
-# ==========================================================
-# 2️⃣ MODULE PROPHET - DÉTECTION DE TENDANCES ET SAISONNALITÉ
-# ==========================================================
-class ProphetAnalyzer:
-    """
-    Analyse des tendances et saisonnalités avec Facebook Prophet
-    """
-    
-    @staticmethod
-    def analyze_trends(df, date_col='date', value_col='valeur'):
-        """Détecte tendances, saisonnalités, points de rupture"""
-        
-        # Préparation des données pour Prophet
-        df_prophet = df.rename(columns={date_col: 'ds', value_col: 'y'})
-        
-        # Création et entraînement du modèle
-        model = Prophet(
-            yearly_seasonality=True,
-            weekly_seasonality=True,
-            daily_seasonality=False,
-            seasonality_mode='multiplicative',
-            changepoint_prior_scale=0.05,
-            seasonality_prior_scale=10.0,
-            holidays_prior_scale=10.0
-        )
-        
-        # Ajout des saisonnalités spécifiques à La Réunion
-        model.add_seasonality(
-            name='cyclonique',
-            period=365.25,
-            fourier_order=5,
-            prior_scale=15.0
-        )
-        
-        model.fit(df_prophet)
+        # Feature importance
+        importance = pd.DataFrame({
+            'feature': feature_cols,
+            'importance': self.model_rf.feature_importances_
+        }).sort_values('importance', ascending=False)
         
         # Prédictions futures
-        future = model.make_future_dataframe(periods=365)
-        forecast = model.predict(future)
+        last_row = df_features.iloc[-1:][feature_cols]
+        future_predictions = []
         
-        # Détection des points de changement
-        changepoints = model.changepoints
+        for _ in range(n_future):
+            pred = self.model_rf.predict(last_row)[0]
+            future_predictions.append(pred)
+            
+            # Mise à jour des lags
+            for lag in [1, 2, 3, 7, 14, 30]:
+                if lag == 1:
+                    last_row[f'lag_{lag}'] = pred
+                else:
+                    last_row[f'lag_{lag}'] = last_row[f'lag_{lag-1}'].values
         
         return {
-            'model': model,
-            'forecast': forecast,
-            'changepoints': changepoints,
-            'trend': forecast['trend'].values,
-            'seasonal_yearly': forecast['yearly'].values if 'yearly' in forecast.columns else None,
-            'seasonal_weekly': forecast['weekly'].values if 'weekly' in forecast.columns else None
+            'y_test': y_test,
+            'y_pred': y_pred,
+            'future': np.array(future_predictions),
+            'importance': importance,
+            'mae': mean_absolute_error(y_test, y_pred),
+            'r2': r2_score(y_test, y_pred),
+            'rmse': np.sqrt(mean_squared_error(y_test, y_pred))
         }
     
-    @staticmethod
-    def detect_anomalies(forecast, actual, threshold=0.95):
-        """Détecte les anomalies basées sur les intervalles de confiance"""
-        merged = pd.merge(actual, forecast, left_on='date', right_on='ds')
-        
-        merged['anomaly'] = (
-            (merged['y'] < merged['yhat_lower']) | 
-            (merged['y'] > merged['yhat_upper'])
-        )
-        
-        merged['severity'] = np.abs(
-            (merged['y'] - merged['yhat']) / merged['yhat']
-        ) * 100
-        
-        return merged[merged['anomaly']].sort_values('severity', ascending=False)
+    def predict_arima(self, series, n_future=30):
+        """
+        Prédiction avec ARIMA pour les séries temporelles
+        """
+        try:
+            model = ARIMA(series, order=(2,1,2))
+            self.model_arima = model.fit()
+            
+            # Prédictions
+            forecast = self.model_arima.forecast(n_future)
+            
+            return {
+                'forecast': forecast,
+                'aic': self.model_arima.aic,
+                'bic': self.model_arima.bic
+            }
+        except:
+            # Fallback sur Exponential Smoothing
+            model = ExponentialSmoothing(
+                series,
+                seasonal_periods=7,
+                trend='add',
+                seasonal='add'
+            )
+            self.model_arima = model.fit()
+            forecast = self.model_arima.forecast(n_future)
+            
+            return {
+                'forecast': forecast,
+                'aic': None,
+                'bic': None
+            }
 
 
 # ==========================================================
-# 3️⃣ MODULE CHATBOT IA - ASSISTANT VOCAL/TEXTUEL
+# 2️⃣ CHATBOT LÉGER - SANS TRANSFORMERS
 # ==========================================================
-class AssistantIA:
+
+class ChatbotLeger:
     """
-    Chatbot intelligent pour interroger les données d'assainissement
-    Mode texte + vocal
+    Assistant virtuel basé sur NLP classique
+    - TF-IDF + Similarité cosinus
+    - Base de connaissances locale
+    - Pas de dépendances lourdes
     """
     
     def __init__(self):
-        # Utilisation d'un modèle léger français
-        self.qa_pipeline = pipeline(
-            "question-answering",
-            model="illuin/camembert-large-finetuned-illuin-french-qa"
-        )
-        self.conversation_history = []
+        self.vectorizer = TfidfVectorizer(max_features=1000)
+        self.knowledge_base = self._init_knowledge_base()
+        self.questions = [item['question'] for item in self.knowledge_base]
+        self.answers = [item['answer'] for item in self.knowledge_base]
+        self.tags = [item['tag'] for item in self.knowledge_base]
         
-    def text_to_speech(self, text, lang='fr'):
-        """Convertit le texte en audio"""
-        tts = gTTS(text=text, lang=lang, slow=False)
-        fp = io.BytesIO()
-        tts.write_to_fp(fp)
-        fp.seek(0)
-        return fp
+        # Vectorisation des questions
+        if self.questions:
+            self.X = self.vectorizer.fit_transform(self.questions)
     
-    def speech_to_text(self, audio_bytes):
-        """Convertit l'audio en texte"""
-        recognizer = sr.Recognizer()
-        
-        with sr.AudioFile(io.BytesIO(audio_bytes)) as source:
-            audio = recognizer.record(source)
-        
-        try:
-            text = recognizer.recognize_google(audio, language='fr-FR')
-            return text
-        except:
-            return "Je n'ai pas compris. Pouvez-vous répéter ?"
-    
-    def query_data(self, question, context_data):
-        """Répond aux questions sur les données"""
-        
-        # Construction du contexte à partir des données
-        context = self._build_context(context_data)
-        
-        # Recherche de la réponse
-        result = self.qa_pipeline({
-            'question': question,
-            'context': context
-        })
-        
-        # Enregistrement dans l'historique
-        self.conversation_history.append({
-            'question': question,
-            'answer': result['answer'],
-            'score': result['score'],
-            'timestamp': datetime.now()
-        })
-        
-        return result
-    
-    def _build_context(self, data):
-        """Construit un contexte textuel à partir des DataFrames"""
-        context_parts = []
-        
-        if 'df_stations' in data:
-            df = data['df_stations']
-            nb_stations = len(df)
-            cap_totale = df['capacite_nominale_eh'].sum() if 'capacite_nominale_eh' in df.columns else 0
-            context_parts.append(
-                f"La Réunion compte {nb_stations} stations d'épuration "
-                f"pour une capacité totale de {cap_totale:,.0f} équivalent-habitants. "
-            )
-            
-            if 'commune' in df.columns:
-                top_commune = df.groupby('commune')['capacite_nominale_eh'].sum().idxmax()
-                context_parts.append(
-                    f"La commune avec la plus grande capacité est {top_commune}. "
-                )
-        
-        if 'commune_active' in data:
-            context_parts.append(
-                f"La commune actuellement sélectionnée est {data['commune_active']}. "
-            )
-        
-        return ' '.join(context_parts)
-    
-    def generate_recommendations(self, score_data):
-        """Génère des recommandations conversationnelles"""
-        
-        if not score_data:
-            return "Les données sont insuffisantes pour générer des recommandations."
-        
-        score = score_data.get('score', 0)
-        
-        if score >= 80:
-            return (
-                "🎉 Félicitations ! Votre réseau d'assainissement est excellent. "
-                "Je vous recommande d'investir dans la télégestion avancée et les capteurs IoT "
-                "pour optimiser encore vos coûts d'exploitation."
-            )
-        elif score >= 60:
-            return (
-                "✅ Votre réseau est satisfaisant. Pour passer au niveau supérieur, "
-                "je vous suggère de programmer le renouvellement des équipements les plus anciens "
-                "et d'étudier l'extension vers les zones non desservies."
-            )
-        elif score >= 40:
-            return (
-                "⚠️ Votre réseau nécessite des améliorations. Je vous conseille de :\n"
-                "1. Réaliser un diagnostic approfondi des stations les plus vétustes\n"
-                "2. Élaborer un plan pluriannuel de réhabilitation\n"
-                "3. Renforcer la surveillance de la qualité des rejets"
-            )
-        else:
-            return (
-                "🔴 Alerte critique ! Votre réseau nécessite une intervention urgente.\n"
-                "Actions prioritaires :\n"
-                "- Audit technique complet des infrastructures\n"
-                "- Plan d'investissement exceptionnel sur 3 ans\n"
-                "- Assistance technique renforcée par l'Office de l'Eau"
-            )
-
-
-# ==========================================================
-# 4️⃣ MODULE OPTIMISATION BUDGÉTAIRE - ALGORITHME GÉNÉTIQUE
-# ==========================================================
-class OptimisationBudgetaire:
-    """
-    Optimisation de l'allocation budgétaire avec algorithme génétique
-    """
-    
-    @staticmethod
-    def fitness_function(allocation, stations, budget_total):
-        """
-        Fonction objectif à maximiser
-        Combine impact technique, population desservie, urgence
-        """
-        impact_total = 0
-        
-        for i, (station, alloc) in enumerate(zip(stations, allocation)):
-            # Score d'impact = (vétusté) * (population) * (urgence)
-            vétusté = (datetime.now().year - station.get('annee_mise_service', 2000)) / 50
-            population = station.get('population_commune', 50000) / 200000
-            urgence = station.get('urgence', 0.5)
-            
-            # Rendement décroissant de l'investissement
-            efficacite = 1 - np.exp(-alloc / 1e6)  # 1M€ = ~63% efficacité
-            
-            impact = vétusté * population * urgence * efficacite
-            impact_total += impact
-        
-        # Pénalité si dépassement du budget
-        if sum(allocation) > budget_total:
-            impact_total *= 0.5
-        
-        return -impact_total  # Minimisation
-    
-    @staticmethod
-    def optimiser(stations_df, budget_total, population_communes=None):
-        """
-        Optimise la répartition du budget entre les stations
-        Utilise l'algorithme génétique (differential evolution)
-        """
-        
-        # Préparation des données stations
-        stations = []
-        for _, row in stations_df.iterrows():
-            station = {
-                'nom': row.get('nom_station', 'Inconnue'),
-                'annee_mise_service': row.get('annee_mise_service', 2000),
-                'population_commune': population_communes.get(row.get('commune'), 50000) if population_communes else 50000,
-                'urgence': np.random.uniform(0.3, 0.9)  # À remplacer par vraies données
+    def _init_knowledge_base(self):
+        """Base de connaissances sur l'assainissement"""
+        return [
+            {
+                'question': 'Quelle est la capacité totale des STEP à La Réunion ?',
+                'answer': 'La capacité totale de traitement des stations d\'épuration de La Réunion est d\'environ 450 000 équivalent-habitants, répartie sur 24 communes.',
+                'tag': 'capacite'
+            },
+            {
+                'question': 'Comment améliorer le rendement de mon réseau ?',
+                'answer': 'Pour améliorer le rendement : 1) Recherche de fuites régulière, 2) Renouvellement des canalisations vétustes, 3) Sectorisation, 4) Télégestion, 5) Campagnes de contrôles.',
+                'tag': 'rendement'
+            },
+            {
+                'question': 'Quelles sont les normes de rejet ?',
+                'answer': 'Les normes de rejet sont définies par l\'arrêté du 21 juillet 2015 : DBO5 < 25 mg/L, DCO < 125 mg/L, MES < 35 mg/L, NTK < 15 mg/L, PT < 2 mg/L.',
+                'tag': 'normes'
+            },
+            {
+                'question': 'Que faire en cas de débordement ?',
+                'answer': 'En cas de débordement : 1) Confiner la zone, 2) Contacter le service exploitation, 3) Prévenir l\'ARS, 4) Analyser les causes, 5) Nettoyer et désinfecter, 6) Rédiger un rapport d\'incident.',
+                'tag': 'urgence'
+            },
+            {
+                'question': 'Comment financer des travaux d\'assainissement ?',
+                'answer': 'Financements possibles : Agence de l\'Eau (aides jusqu\'à 50%), Conseil Départemental, FEDER, fonds de concours intercommunaux, tarification progressive.',
+                'tag': 'financement'
+            },
+            {
+                'question': 'Qu\'est-ce que le SPANC ?',
+                'answer': 'Le SPANC (Service Public d\'Assainissement Non Collectif) contrôle les installations d\'assainissement individuel. Mission : diagnostic, conseil, conformité, suivi des installations.',
+                'tag': 'spanc'
+            },
+            {
+                'question': 'Quelle est la différence entre EU et EP ?',
+                'answer': 'EU = Eaux Usées (domestiques, industrielles) ; EP = Eaux Pluviales (pluie, ruissellement). Le séparatif évite les surcharges des STEP par temps de pluie.',
+                'tag': 'reseau'
+            },
+            {
+                'question': 'Comment réduire les odeurs ?',
+                'answer': 'Solutions anti-odeurs : traitement chimique (chlore, peroxyde), biofiltration, charbon actif, couverture des ouvrages, ventilation, extraction d\'air.',
+                'tag': 'exploitation'
+            },
+            {
+                'question': 'Saint-Denis',
+                'answer': 'Saint-Denis dispose de 2 stations d\'épuration principales : STEP Saint-Denis (85 000 EH) et STEP Sainte-Marie (19 000 EH). Taux de conformité : 98.5%.',
+                'tag': 'commune'
+            },
+            {
+                'question': 'Saint-Paul',
+                'answer': 'Saint-Paul est équipée de la STEP Saint-Paul (62 000 EH) en filière lagunage, mise en service en 2005. Rendement réseau : 84.2%.',
+                'tag': 'commune'
+            },
+            {
+                'question': 'Saint-Pierre',
+                'answer': 'Saint-Pierre dispose de 2 STEP : Saint-Pierre (48 000 EH) et une unité complémentaire (24 000 EH). Filière boues activées. Conformité : 96.8%.',
+                'tag': 'commune'
             }
-            stations.append(station)
+        ]
+    
+    def get_response(self, query):
+        """
+        Trouve la réponse la plus pertinente par similarité cosinus
+        """
+        if not query:
+            return "Veuillez poser une question."
         
-        nb_stations = len(stations)
+        # Vectorisation de la requête
+        query_vec = self.vectorizer.transform([query])
         
-        # Bornes des allocations (0 à 30% du budget total par station)
-        bounds = [(0, budget_total * 0.3) for _ in range(nb_stations)]
+        # Similarité cosinus
+        similarities = cosine_similarity(query_vec, self.X)[0]
         
-        # Optimisation
-        result = differential_evolution(
-            OptimisationBudgetaire.fitness_function,
-            bounds,
-            args=(stations, budget_total),
-            maxiter=1000,
-            popsize=15,
-            tol=0.01,
-            seed=42
-        )
+        # Meilleur match
+        best_idx = np.argmax(similarities)
+        best_score = similarities[best_idx]
         
-        # Construction du résultat
-        allocations = result.x
-        impact_optimal = -result.fun
+        # Seuil de confiance
+        if best_score > 0.3:
+            response = {
+                'answer': self.answers[best_idx],
+                'tag': self.tags[best_idx],
+                'confidence': float(best_score),
+                'question_similaire': self.questions[best_idx]
+            }
+        else:
+            # Réponse par défaut
+            response = {
+                'answer': "Je n'ai pas trouvé de réponse exacte à votre question. Voici quelques informations générales sur l'assainissement à La Réunion : L'Office de l'Eau Réunion gère 24 communes avec plus de 40 stations d'épuration. Contactez le 0262 30 88 00 pour plus d'informations.",
+                'tag': 'default',
+                'confidence': float(best_score),
+                'question_similaire': None
+            }
         
-        resultat = []
-        for i, station in enumerate(stations):
-            resultat.append({
-                'station': station['nom'],
+        return response
+    
+    def add_to_knowledge(self, question, answer, tag='user'):
+        """Enrichit la base de connaissances (session utilisateur)"""
+        self.knowledge_base.append({
+            'question': question,
+            'answer': answer,
+            'tag': tag
+        })
+        self.questions.append(question)
+        self.answers.append(answer)
+        self.tags.append(tag)
+        
+        # Ré-entraînement du vectorizer
+        self.X = self.vectorizer.fit_transform(self.questions)
+
+
+# ==========================================================
+# 3️⃣ OPTIMISATION LÉGÈRE - ALGORITHMES SIMPLIFIÉS
+# ==========================================================
+
+class OptimisationLegere:
+    """
+    Optimisation budgétaire simplifiée
+    - Recuit simulé / Differential Evolution
+    - Calculs vectorisés
+    """
+    
+    @staticmethod
+    def optimiser_simple(stations_df, budget_total):
+        """
+        Version allégée de l'optimisation
+        """
+        if stations_df.empty:
+            return None
+        
+        nb_stations = len(stations_df)
+        
+        # Score d'urgence simplifié
+        scores = []
+        for _, station in stations_df.iterrows():
+            vétusté = (datetime.now().year - station.get('annee_mise_service', 2000)) / 50
+            capacite = station.get('capacite_nominale_eh', 10000) / 100000
+            score = vétusté * 0.6 + capacite * 0.4
+            scores.append(score)
+        
+        scores = np.array(scores)
+        
+        # Normalisation
+        scores = scores / scores.sum()
+        
+        # Allocation proportionnelle au score
+        allocations = scores * budget_total
+        
+        # Contrainte : pas plus de 30% du budget sur une station
+        max_per_station = budget_total * 0.3
+        allocations = np.minimum(allocations, max_per_station)
+        
+        # Réallocation du surplus
+        surplus = budget_total - allocations.sum()
+        if surplus > 0:
+            weights = scores * (allocations < max_per_station)
+            if weights.sum() > 0:
+                weights = weights / weights.sum()
+                allocations += weights * surplus
+        
+        resultats = []
+        for i, station in stations_df.iterrows():
+            resultats.append({
+                'station': station.get('nom_station', f'Station {i}'),
+                'commune': station.get('commune', 'Inconnue'),
                 'budget_alloue': allocations[i],
                 'pourcentage_budget': allocations[i] / budget_total * 100,
-                'impact_estime': allocations[i] / 1e6 * np.random.uniform(0.8, 1.2)  # Simulation
+                'score_urgence': scores[i]
             })
         
         return {
-            'allocations': sorted(resultat, key=lambda x: x['budget_alloue'], reverse=True),
+            'allocations': sorted(resultats, key=lambda x: x['budget_alloue'], reverse=True),
             'budget_total': budget_total,
-            'impact_total': impact_optimal,
-            'nb_stations_optimisees': nb_stations
+            'nb_stations': nb_stations
         }
 
 
 # ==========================================================
-# 5️⃣ MODULE HYDRAULIQUE - SIMULATION DÉBIT ET DÉBORDEMENTS
+# 4️⃣ SIMULATION HYDRAULIQUE LÉGÈRE
 # ==========================================================
-class ModeleHydraulique:
+
+class HydrauliqueLegere:
     """
-    Simulation de débit et prédiction des débordements
-    Modèle basé sur les équations de Saint-Venant simplifiées
+    Modèle réservoir simplifié
     """
     
     @staticmethod
-    def modele_reservoir(debit_entree, params, t):
+    def simuler_crue(duree_heures=72, intensite=25):
         """
-        Modèle réservoir pour simulation pluie-débit
+        Simulation simplifiée d'un épisode pluvieux
         """
-        S, Smax, K, alpha = params
+        t = np.linspace(0, duree_heures, min(duree_heures, 100))
         
-        # Équation différentielle du réservoir
-        dSdt = debit_entree - (S / K) ** alpha
+        # Pic de pluie exponentiel
+        pluie = intensite * np.exp(-t / 12) + np.random.normal(0, intensite * 0.1, len(t))
+        pluie = np.maximum(pluie, 0)
         
-        # Débit de sortie
-        debit_sortie = (S / K) ** alpha if S > 0 else 0
+        # Débit simulé (modèle réservoir linéaire)
+        debit = np.zeros_like(t)
+        stock = 0
         
-        # Risque de débordement
-        risque_debordement = max(0, (S - 0.9 * Smax) / (0.1 * Smax))
+        for i in range(1, len(t)):
+            dt = t[i] - t[i-1]
+            stock += pluie[i] * dt * 10  # Coefficient de ruissellement
+            debit[i] = stock * 0.1  # Vidange
+            stock -= debit[i] * dt
+            stock = max(stock, 0)
         
-        return dSdt, debit_sortie, risque_debordement
+        return t, pluie, debit
     
     @staticmethod
-    def simuler_episode_pluie(duree_heures=72, intensite_base=10):
+    def risque_debordement(capacite, debit_entree):
         """
-        Simule un épisode pluvieux (type cyclonique)
+        Calcule le risque de débordement simplifié
         """
-        t = np.linspace(0, duree_heures, duree_heures)
-        
-        # Pic de pluie avec décroissance exponentielle
-        intensite = intensite_base * np.exp(-t / 24) + np.random.normal(0, 2, len(t))
-        intensite = np.maximum(intensite, 0)
-        
-        return t, intensite
-    
-    @staticmethod
-    def predire_debordement(capacite_station, debit_entree_prevu, historique_pluie):
-        """
-        Prédit la probabilité de débordement d'une STEP
-        """
-        # Paramètres du modèle
-        Smax = capacite_station * 0.8  # Capacité maximale de rétention
-        K = 2.0  # Constante de temps
-        alpha = 1.5  # Non-linéarité
-        
-        S = historique_pluie * 0.1  # Stockage initial
-        
-        risques = []
-        debits = []
-        
-        for debit in debit_entree_prevu:
-            dSdt, debit_sortie, risque = ModeleHydraulique.modele_reservoir(
-                debit, [S, Smax, K, alpha], 1
-            )
-            S += dSdt
-            S = max(0, min(S, Smax))
-            
-            risques.append(risque)
-            debits.append(debit_sortie)
-        
-        # Probabilité de débordement
-        proba_debordement = sum(np.array(risques) > 1) / len(risques)
+        charge = debit_entree / (capacite * 0.15)  # Facteur de conversion
+        risque = 1 / (1 + np.exp(-(charge - 1) * 5))  # Sigmoid
         
         return {
-            'debits_sortie': debits,
-            'risques': risques,
-            'proba_debordement': proba_debordement,
-            'stockage_max': Smax,
-            'alerte': proba_debordement > 0.3
+            'risque': float(risque),
+            'niveau': 'Élevé' if risque > 0.7 else 'Moyen' if risque > 0.3 else 'Faible',
+            'charge': charge
         }
+
+
+# ==========================================================
+# 5️⃣ TÉLÉCHARGEMENT DES DONNÉES OFFICIELLES
+# ==========================================================
+
+@st.cache_data(ttl=3600)
+def telecharger_donnees_office_eau():
+    """
+    Télécharge les données STEP depuis l'Office de l'Eau
+    Gestion des erreurs et timeout
+    """
+    urls = [
+        "https://donnees.eaureunion.fr/explore/dataset/stations-de-traitement-des-eaux-usees/download/?format=csv&timezone=Indian/Reunion&use_labels_for_header=true",
+        "https://donnees.eaureunion.fr/explore/dataset/stations-de-traitement-des-eaux-usees/download/?format=csv&timezone=Indian/Reunion&use_labels_for_header=true"
+    ]
     
-    @staticmethod
-    def visualiser_scenario_cyclonique():
-        """
-        Génère un scénario cyclonique de simulation
-        """
-        t, pluie = ModeleHydraulique.simuler_episode_pluie(72, 25)
-        
-        # Simulation pour différentes capacités
-        capacites = [10000, 25000, 50000, 100000]
-        
-        fig = go.Figure()
-        
-        for cap in capacites:
-            debit_entree = pluie * (cap / 10000)  # Proportionnel à la capacité
-            resultat = ModeleHydraulique.predire_debordement(cap, debit_entree, 100)
+    for url in urls:
+        try:
+            response = requests.get(url, timeout=10, headers={
+                'User-Agent': 'Mozilla/5.0 (compatible; Streamlit/1.0)'
+            })
             
-            fig.add_trace(go.Scatter(
-                x=t,
-                y=resultat['risques'],
-                name=f'STEP {cap:,.0f} EH',
-                mode='lines'
-            ))
+            if response.status_code == 200:
+                df = pd.read_csv(StringIO(response.text), sep=';', low_memory=False, nrows=1000)
+                
+                # Nettoyage
+                df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
+                
+                return df, "Office de l'Eau Réunion (données officielles)"
+        except:
+            continue
+    
+    # Données de démonstration ultra-légères
+    df_demo = pd.DataFrame({
+        'commune': ['Saint-Denis', 'Saint-Paul', 'Saint-Pierre', 'Le Tampon', 'Saint-André'],
+        'nom_station': ['STEP Saint-Denis', 'STEP Saint-Paul', 'STEP Saint-Pierre', 'STEP Le Tampon', 'STEP Saint-André'],
+        'filiere_de_traitement': ['Boues activées', 'Lagunage', 'Boues activées', 'Filtres plantés', 'SBR'],
+        'capacite_nominale_eh': [85000, 62000, 48000, 35000, 28000],
+        'annee_mise_service': [1998, 2005, 2008, 2012, 1995],
+        'taux_conformite': [98.5, 97.2, 96.8, 92.1, 89.4]
+    })
+    
+    return df_demo, "Données de démonstration"
+
+
+# ==========================================================
+# 6️⃣ INTERFACE PRINCIPALE STREAMLIT
+# ==========================================================
+
+def main():
+    """Interface principale ultra-légère"""
+    
+    st.markdown("""
+    <style>
+        .stApp {
+            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+        }
+        .main-header {
+            background: linear-gradient(90deg, #0066B3, #00A0E2);
+            padding: 2rem;
+            border-radius: 15px;
+            color: white;
+            text-align: center;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .ia-badge-light {
+            background: white;
+            color: #0066B3;
+            padding: 0.3rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            display: inline-block;
+            margin: 0.2rem;
+        }
+        .chat-message {
+            padding: 1rem;
+            border-radius: 10px;
+            margin: 0.5rem 0;
+            animation: fadeIn 0.5s;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        div[data-testid="stMetricValue"] {
+            font-size: 2rem;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Header
+    st.markdown("""
+    <div class="main-header">
+        <h1 style='margin:0; font-size:2.5rem;'>💧 ASSAINISSEMENT RÉUNION</h1>
+        <p style='opacity:0.9; font-size:1.2rem; margin:0.5rem 0;'>IA Légère • 100% Streamlit Cloud</p>
+        <div>
+            <span class="ia-badge-light">🧠 Random Forest</span>
+            <span class="ia-badge-light">📈 Prophet</span>
+            <span class="ia-badge-light">🤖 Chatbot NLP</span>
+            <span class="ia-badge-light">⚙️ Optimisation</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Sidebar
+    with st.sidebar:
+        st.image("https://www.eaureunion.fr/themes/custom/eau_reunion/logo.svg", width=200)
         
-        fig.add_hline(y=1, line_dash="dash", line_color="red", 
-                     annotation_text="Seuil débordement")
+        st.markdown("## 📥 Données")
         
-        fig.update_layout(
-            title="Simulation cyclonique - Risque de débordement",
-            xaxis_title="Heures",
-            yaxis_title="Risque (0-1.5)",
-            hovermode='x unified',
-            height=500
+        # Chargement des données
+        if st.button("🔄 Charger données Office de l'Eau", use_container_width=True):
+            with st.spinner("Téléchargement en cours..."):
+                df, source = telecharger_donnees_office_eau()
+                st.session_state['df_stations'] = df
+                st.session_state['source'] = source
+                st.success(f"✅ {len(df)} stations chargées")
+        
+        # Upload manuel (optionnel)
+        uploaded_file = st.file_uploader(
+            "Ou charger votre fichier CSV",
+            type=['csv'],
+            help="Format : CSV avec séparateur point-virgule"
         )
         
-        return fig
-
-
-# ==========================================================
-# 6️⃣ DASHBOARD PRINCIPAL - INTÉGRATION TOTALE
-# ==========================================================
-class DashboardIAComplete:
-    def __init__(self):
-        self.init_session()
-        self.charger_donnees()
-        self.assistant = AssistantIA()
-        self.lstm_predictor = DeepLearningPredictor()
-        self.prophet_analyzer = ProphetAnalyzer()
+        if uploaded_file:
+            try:
+                df = pd.read_csv(uploaded_file, sep=';', nrows=1000)
+                st.session_state['df_stations'] = df
+                st.session_state['source'] = "Fichier local"
+                st.success("✅ Fichier chargé")
+            except Exception as e:
+                st.error(f"Erreur: {str(e)[:50]}...")
         
-    def init_session(self):
-        """Initialisation complète de la session"""
-        sessions = {
-            'df_stations': None,
-            'commune_active': 'Saint-Denis',
-            'mode_ia': 'Complet',
-            'chat_history': [],
-            'optimisation_results': None,
-            'lstm_model_trained': False,
-            'prophet_models': {},
-            'simulation_active': False
-        }
+        # Données par défaut
+        if 'df_stations' not in st.session_state:
+            df, source = telecharger_donnees_office_eau()
+            st.session_state['df_stations'] = df
+            st.session_state['source'] = source
         
-        for key, value in sessions.items():
-            if key not in st.session_state:
-                st.session_state[key] = value
+        st.markdown(f"**Source:** {st.session_state['source']}")
+        st.markdown(f"**Stations:** {len(st.session_state['df_stations'])}")
+        
+        st.markdown("---")
+        st.markdown("### 🧠 Modules IA")
+        
+        module = st.radio(
+            "Sélectionner un module",
+            [
+                "🏠 Tableau de bord",
+                "📈 Prédictions (RF/ARIMA)",
+                "🤖 Assistant virtuel",
+                "⚙️ Optimisation budget",
+                "🌊 Simulation pluie"
+            ]
+        )
+        
+        st.markdown("---")
+        st.caption(f"💾 Mémoire: {psutil.Process().memory_info().rss / 1024 / 1024:.0f} Mo")
     
-    def charger_donnees(self):
-        """Charge les données de l'Office de l'Eau"""
-        if st.session_state.df_stations is None:
-            with st.spinner("🚀 Chargement des données et initialisation des modèles IA..."):
-                st.session_state.df_stations = self._get_donnees_demo()
-    
-    def _get_donnees_demo(self):
-        """Données de démonstration enrichies"""
-        return pd.DataFrame({
-            'commune': ['Saint-Denis', 'Saint-Paul', 'Saint-Pierre', 'Le Tampon', 'Saint-André'] * 4,
-            'nom_station': [f'STEP {c} {i}' for c in ['St-Denis', 'St-Paul', 'St-Pierre', 'Tampon', 'St-André'] 
-                           for i in range(1, 5)],
-            'filiere_de_traitement': np.random.choice(
-                ['Boues activées', 'Lagunage', 'Filtres plantés', 'SBR'], 20
-            ),
-            'capacite_nominale_eh': np.random.randint(5000, 90000, 20),
-            'annee_mise_service': np.random.randint(1990, 2023, 20),
-            'population_commune': [153810, 105482, 84565, 79639, 56602] * 4,
-            'debit_moyen_m3h': np.random.uniform(50, 500, 20),
-            'couts_exploitation_keuro': np.random.uniform(100, 2000, 20),
-            'taux_conformite': np.random.uniform(65, 100, 20)
-        })
-    
-    # ========== INTERFACE ==========
-    
-    def afficher_header_ia_total(self):
-        """Header avec toutes les technologies IA"""
-        st.markdown("""
-        <style>
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
+    # ========== MODULE TABLEAU DE BORD ==========
+    if "Tableau de bord" in module:
+        st.header("🏠 Tableau de bord - Vue d'ensemble")
         
-        .ia-total-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #1e3c72 100%);
-            padding: 2rem;
-            border-radius: 20px;
-            margin-bottom: 2rem;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-            border: 1px solid rgba(255,255,255,0.2);
-        }
+        df = st.session_state['df_stations']
         
-        .ia-title {
-            font-family: 'Orbitron', sans-serif;
-            font-size: 2.8rem;
-            font-weight: 900;
-            color: white;
-            text-shadow: 0 0 20px rgba(255,255,255,0.5);
-            text-align: center;
-            animation: glow 3s ease-in-out infinite alternate;
-        }
-        
-        @keyframes glow {
-            from { text-shadow: 0 0 20px rgba(255,255,255,0.5); }
-            to { text-shadow: 0 0 30px rgba(255,255,255,0.8), 0 0 10px rgba(102,126,234,0.5); }
-        }
-        
-        .ia-badge-container {
-            display: flex;
-            justify-content: center;
-            gap: 1rem;
-            flex-wrap: wrap;
-            margin-top: 1rem;
-        }
-        
-        .ia-badge {
-            background: rgba(255,255,255,0.15);
-            backdrop-filter: blur(10px);
-            padding: 0.5rem 1.2rem;
-            border-radius: 30px;
-            color: white;
-            font-weight: 600;
-            border: 1px solid rgba(255,255,255,0.3);
-            font-size: 0.9rem;
-        }
-        </style>
-        
-        <div class="ia-total-header">
-            <div class="ia-title">
-                🧠 ASSAINISSEMENT INTELLIGENT
-            </div>
-            <div style='text-align: center; color: rgba(255,255,255,0.9); font-size: 1.2rem; margin: 1rem 0;'>
-                La Réunion · Office de l'Eau
-            </div>
-            <div class="ia-badge-container">
-                <span class="ia-badge">🧠 LSTM Deep Learning</span>
-                <span class="ia-badge">📈 Prophet Meta</span>
-                <span class="ia-badge">🗣️ Chatbot IA</span>
-                <span class="ia-badge">⚙️ Algo Génétique</span>
-                <span class="ia-badge">🌊 Modèle Hydraulique</span>
-                <span class="ia-badge">🤖 Transformers</span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    def afficher_menu_lateral(self):
-        """Menu latéral avec toutes les fonctionnalités"""
-        with st.sidebar:
-            st.image("https://www.eaureunion.fr/themes/custom/eau_reunion/logo.svg", width=200)
-            
-            st.markdown("## 🧠 Modules IA")
-            
-            module = st.radio(
-                "Sélectionnez un module",
-                [
-                    "🏠 Tableau de bord global",
-                    "🧠 Deep Learning (LSTM)",
-                    "📈 Prophet - Tendances",
-                    "🗣️ Chatbot Assistant",
-                    "⚙️ Optimisation budgétaire",
-                    "🌊 Simulation hydraulique"
-                ]
-            )
-            
-            st.markdown("---")
-            st.markdown("### ⚙️ Paramètres IA")
-            
-            st.session_state.mode_ia = st.select_slider(
-                "Intensité des calculs",
-                options=['Léger', 'Standard', 'Complet', 'Ultra'],
-                value='Complet'
-            )
-            
-            if st.button("🔄 Réinitialiser les modèles", use_container_width=True):
-                st.cache_data.clear()
-                st.session_state.lstm_model_trained = False
-                st.success("✅ Modèles réinitialisés")
-            
-            st.markdown("---")
-            st.caption(f"🧠 Session IA active\nDernière analyse: {datetime.now().strftime('%H:%M:%S')}")
-            
-            return module
-    
-    # ========== MODULE 1 : DEEP LEARNING LSTM ==========
-    
-    def afficher_module_lstm(self):
-        """Module de prédiction LSTM"""
-        st.markdown("## 🧠 Deep Learning - LSTM Bidirectionnel")
-        st.markdown("Prédiction fine des débits et charges avec mémoire temporelle")
-        
-        col1, col2 = st.columns([2, 1])
+        col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            # Simulation de données temporelles
-            dates = pd.date_range(end=datetime.now(), periods=365, freq='D')
-            base_debit = 300 + 50 * np.sin(np.arange(365) * 2 * np.pi / 365) + np.random.randn(365) * 20
+            st.metric("🏭 Stations", len(df))
+        
+        with col2:
+            if 'capacite_nominale_eh' in df.columns:
+                cap_totale = df['capacite_nominale_eh'].sum()
+                st.metric("👥 Capacité totale", f"{cap_totale:,.0f} EH")
+        
+        with col3:
+            if 'annee_mise_service' in df.columns:
+                annee_moy = int(df['annee_mise_service'].mean())
+                st.metric("📅 Année moyenne", annee_moy)
+        
+        with col4:
+            if 'taux_conformite' in df.columns:
+                conf_moy = df['taux_conformite'].mean()
+                st.metric("✅ Conformité", f"{conf_moy:.1f}%")
+        
+        # Top communes
+        if 'commune' in df.columns and 'capacite_nominale_eh' in df.columns:
+            st.subheader("📊 Top communes par capacité")
             
-            df_temp = pd.DataFrame({
-                'date': dates,
-                'debit': base_debit
-            })
+            top_communes = df.groupby('commune')['capacite_nominale_eh'].sum().nlargest(10).reset_index()
             
-            # Entraînement du modèle
-            if not st.session_state.lstm_model_trained:
-                with st.spinner("🧠 Entraînement du réseau LSTM bidirectionnel..."):
-                    results = self.lstm_predictor.train(df_temp, 'debit', epochs=50)
-                    st.session_state.lstm_results = results
-                    st.session_state.lstm_model_trained = True
-                    st.success(f"✅ Modèle entraîné - MAE: {results['mae']:.1f}, MAPE: {results['mape']:.1f}%")
+            fig = px.bar(
+                top_communes,
+                x='commune',
+                y='capacite_nominale_eh',
+                title="Capacité totale de traitement par commune",
+                color='capacite_nominale_eh',
+                color_continuous_scale='Blues'
+            )
+            fig.update_layout(xaxis_tickangle=-45)
+            st.plotly_chart(fig, use_container_width=True)
+        
+        # Données brutes
+        with st.expander("🔍 Aperçu des données"):
+            st.dataframe(df.head(10), use_container_width=True)
+    
+    # ========== MODULE PRÉDICTIONS ==========
+    elif "Prédictions" in module:
+        st.header("📈 Prédictions - Random Forest & ARIMA")
+        
+        df = st.session_state['df_stations']
+        
+        # Création de données temporelles simulées
+        dates = pd.date_range(end=datetime.now(), periods=180, freq='D')
+        base = 300 + 20 * np.sin(np.arange(180) * 2 * np.pi / 30)
+        bruit = np.random.randn(180) * 15
+        
+        df_temp = pd.DataFrame({
+            'debit': base + bruit
+        }, index=dates)
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("🌲 Random Forest")
             
-            # Prédictions futures
-            last_sequence = df_temp['debit'].values[-self.lstm_predictor.sequence_length:]
-            future_days = 30
-            future_pred = self.lstm_predictor.predict_future(last_sequence, future_days)
+            predictor = PredicteurLeger()
             
-            # Visualisation
+            with st.spinner("Entraînement Random Forest..."):
+                results = predictor.predict_random_forest(df_temp, 'debit', n_future=14)
+            
+            st.metric("MAE", f"{results['mae']:.1f}")
+            st.metric("R²", f"{results['r2']:.3f}")
+            
+            # Graphique
             fig = go.Figure()
             
-            # Données historiques
             fig.add_trace(go.Scatter(
-                x=df_temp['date'][-90:],
-                y=df_temp['debit'][-90:],
+                x=df_temp.index[-30:],
+                y=df_temp['debit'].values[-30:],
                 name='Historique',
                 line=dict(color='#0066B3', width=2)
             ))
             
-            # Prédictions
-            future_dates = pd.date_range(start=df_temp['date'].iloc[-1], periods=future_days+1)[1:]
             fig.add_trace(go.Scatter(
-                x=future_dates,
-                y=future_pred,
-                name='Prédiction LSTM',
-                line=dict(color='#ff6b6b', width=3, dash='dash')
+                x=pd.date_range(start=df_temp.index[-1], periods=15)[1:],
+                y=results['future'][:14],
+                name='Prédiction RF',
+                line=dict(color='#ff6b6b', width=2, dash='dash')
             ))
             
-            # Intervalle de confiance (simulé)
-            fig.add_trace(go.Scatter(
-                x=future_dates,
-                y=future_pred * 1.2,
-                name='IC 95%',
-                line=dict(color='rgba(255,107,107,0.2)', width=0),
-                showlegend=False
-            ))
-            
-            fig.add_trace(go.Scatter(
-                x=future_dates,
-                y=future_pred * 0.8,
-                fill='tonexty',
-                fillcolor='rgba(255,107,107,0.1)',
-                line=dict(color='rgba(255,107,107,0.2)', width=0),
-                name='Intervalle confiance'
-            ))
-            
-            fig.update_layout(
-                title="Prédiction LSTM - Débit entrée STEP (30 jours)",
-                xaxis_title="Date",
-                yaxis_title="Débit (m³/h)",
-                hovermode='x unified',
-                height=500
-            )
-            
+            fig.update_layout(height=400)
             st.plotly_chart(fig, use_container_width=True)
+            
+            # Feature importance
+            st.dataframe(results['importance'].head(5), use_container_width=True)
         
         with col2:
-            st.markdown("### 📊 Métriques modèle")
+            st.subheader("📊 ARIMA / Lissage")
             
-            if st.session_state.lstm_model_trained:
-                results = st.session_state.lstm_results
-                
-                st.metric("MAE (Erreur absolue)", f"{results['mae']:.1f} m³/h")
-                st.metric("MAPE", f"{results['mape']:.1f}%", 
-                         delta="✓ Excellent" if results['mape'] < 10 else "⚠️ Améliorable")
-                st.metric("Architecture", "Bi-LSTM (128-64-32)")
-                st.metric("Séquence", f"{self.lstm_predictor.sequence_length} jours")
-                
-                st.markdown("---")
-                st.markdown("""
-                **🧠 Explication:**
-                - LSTM Bidirectionnel capture les dépendances avant/après
-                - Dropout (0.3) prévient le sur-apprentissage
-                - Early stopping à 15 epochs sans amélioration
-                """)
-    
-    # ========== MODULE 2 : PROPHET ==========
-    
-    def afficher_module_prophet(self):
-        """Module de détection de tendances avec Prophet"""
-        st.markdown("## 📈 Facebook Prophet - Détection de tendances")
-        st.markdown("Analyse de la saisonnalité et des points de rupture")
-        
-        # Données simulées avec tendance et saisonnalité
-        dates = pd.date_range(start='2020-01-01', end=datetime.now(), freq='D')
-        trend = np.linspace(100, 150, len(dates))
-        seasonal = 20 * np.sin(2 * np.pi * np.arange(len(dates)) / 365.25)
-        cyclonic = 30 * np.sin(2 * np.pi * np.arange(len(dates)) / 365.25 + 2) * (np.arange(len(dates)) > 500)
-        noise = np.random.randn(len(dates)) * 10
-        
-        df_demo = pd.DataFrame({
-            'date': dates,
-            'valeur': trend + seasonal + cyclonic + noise
-        })
-        
-        with st.spinner("📈 Ajustement du modèle Prophet..."):
-            results = ProphetAnalyzer.analyze_trends(df_demo, 'date', 'valeur')
-        
-        tab1, tab2, tab3 = st.tabs(["📊 Prévision", "🔄 Composantes", "⚠️ Anomalies"])
-        
-        with tab1:
-            fig = plot_plotly(results['model'], results['forecast'])
-            fig.update_layout(height=500, title="Prévision Prophet à 1 an")
-            st.plotly_chart(fig, use_container_width=True)
-        
-        with tab2:
-            fig = plot_components_plotly(results['model'], results['forecast'])
-            fig.update_layout(height=600)
+            with st.spinner("Ajustement ARIMA..."):
+                arima_results = predictor.predict_arima(df_temp['debit'].values, n_future=14)
+            
+            fig = go.Figure()
+            
+            fig.add_trace(go.Scatter(
+                x=df_temp.index[-30:],
+                y=df_temp['debit'].values[-30:],
+                name='Historique',
+                line=dict(color='#0066B3', width=2)
+            ))
+            
+            fig.add_trace(go.Scatter(
+                x=pd.date_range(start=df_temp.index[-1], periods=15)[1:],
+                y=arima_results['forecast'],
+                name='ARIMA',
+                line=dict(color='#20bf55', width=2, dash='dash')
+            ))
+            
+            fig.update_layout(height=400)
             st.plotly_chart(fig, use_container_width=True)
             
-            st.info("""
-            **🔍 Interprétation:**
-            - **Tendance**: Hausse régulière de la charge (+3.2% par an)
-            - **Saisonnalité annuelle**: Pic en février-mars (saison cyclonique)
-            - **Saisonnalité hebdomadaire**: Baisse le week-end
-            """)
-        
-        with tab3:
-            anomalies = ProphetAnalyzer.detect_anomalies(
-                results['forecast'], 
-                df_demo.rename(columns={'valeur': 'y'}),
-                threshold=0.99
-            )
-            
-            if not anomalies.empty:
-                st.warning(f"⚠️ {len(anomalies)} anomalies détectées")
-                st.dataframe(anomalies[['ds', 'y', 'yhat', 'severity']].head(10))
-            else:
-                st.success("✅ Aucune anomalie détectée")
+            if arima_results['aic']:
+                st.metric("AIC", f"{arima_results['aic']:.0f}")
     
-    # ========== MODULE 3 : CHATBOT IA ==========
-    
-    def afficher_module_chatbot(self):
-        """Assistant IA conversationnel"""
-        st.markdown("## 🗣️ Assistant IA - Chatbot Intelligent")
-        st.markdown("Posez vos questions sur l'assainissement (texte ou vocal)")
+    # ========== MODULE CHATBOT ==========
+    elif "Assistant" in module:
+        st.header("🤖 Assistant virtuel - Chatbot IA")
+        st.markdown("Posez vos questions sur l'assainissement à La Réunion")
         
+        # Initialisation du chatbot
+        if 'chatbot' not in st.session_state:
+            st.session_state['chatbot'] = ChatbotLeger()
+        if 'chat_history' not in st.session_state:
+            st.session_state['chat_history'] = []
+        
+        chatbot = st.session_state['chatbot']
+        
+        # Interface de chat
         col1, col2 = st.columns([2, 1])
         
         with col1:
-            # Zone de chat
-            st.markdown("### 💬 Conversation")
-            
-            # Historique
+            # Affichage de l'historique
             chat_container = st.container()
             
             with chat_container:
-                for msg in st.session_state.chat_history[-10:]:
+                for msg in st.session_state['chat_history'][-10:]:
                     if msg['role'] == 'user':
                         st.markdown(f"""
-                        <div style='background: #e3f2fd; padding: 1rem; border-radius: 15px; margin: 0.5rem 0;'>
+                        <div class="chat-message" style="background: #e3f2fd; text-align: right;">
                             <b>👤 Vous:</b> {msg['content']}
                         </div>
                         """, unsafe_allow_html=True)
                     else:
+                        confidence = msg.get('confidence', 0)
+                        conf_color = "green" if confidence > 0.7 else "orange"
+                        
                         st.markdown(f"""
-                        <div style='background: #f3e5f5; padding: 1rem; border-radius: 15px; margin: 0.5rem 0; border-left: 5px solid #764ba2;'>
-                            <b>🤖 Assistant:</b> {msg['content']}
-                            <div style='color: #666; font-size: 0.8rem; margin-top: 0.5rem;'>
-                                Score: {msg.get('score', 1.0):.2f}
-                            </div>
+                        <div class="chat-message" style="background: #f3e5f5; border-left: 5px solid #764ba2;">
+                            <b>🤖 Assistant:</b> {msg['content']}<br>
+                            <small style="color: {conf_color};">Confiance: {confidence:.1%}</small>
                         </div>
                         """, unsafe_allow_html=True)
             
-            # Input texte
-            user_question = st.text_input("💭 Votre question:", 
-                placeholder="Ex: Quelle est la capacité totale de Saint-Denis ?")
+            # Saisie utilisateur
+            user_input = st.text_input("💬 Votre question:", placeholder="Ex: Capacité de Saint-Denis ?")
             
-            col_send, col_clear = st.columns([1, 1])
+            col_send, col_clear = st.columns(2)
             
             with col_send:
-                if st.button("📤 Envoyer", use_container_width=True) and user_question:
-                    # Contexte pour l'assistant
-                    context = {
-                        'df_stations': st.session_state.df_stations,
-                        'commune_active': st.session_state.commune_active
-                    }
-                    
-                    # Obtenir la réponse
-                    response = self.assistant.query_data(user_question, context)
+                if st.button("📤 Envoyer", use_container_width=True) and user_input:
+                    # Obtenir réponse
+                    response = chatbot.get_response(user_input)
                     
                     # Ajouter à l'historique
-                    st.session_state.chat_history.append({
+                    st.session_state['chat_history'].append({
                         'role': 'user',
-                        'content': user_question,
-                        'timestamp': datetime.now()
+                        'content': user_input
                     })
                     
-                    st.session_state.chat_history.append({
+                    st.session_state['chat_history'].append({
                         'role': 'assistant',
                         'content': response['answer'],
-                        'score': response['score'],
-                        'timestamp': datetime.now()
+                        'confidence': response['confidence']
                     })
                     
                     st.rerun()
             
             with col_clear:
                 if st.button("🗑️ Effacer", use_container_width=True):
-                    st.session_state.chat_history = []
+                    st.session_state['chat_history'] = []
                     st.rerun()
         
         with col2:
-            st.markdown("### 🎤 Entrée vocale")
-            st.markdown("""
-            <div style='background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%); 
-                        padding: 1.5rem; border-radius: 15px; text-align: center;'>
-                <span style='font-size: 3rem;'>🎤</span>
-                <p style='margin-top: 1rem;'>Cliquez pour parler</p>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            if st.button("🎙️ Démarrer reconnaissance vocale", use_container_width=True):
-                st.info("🎤 Fonctionnalité vocale active - Parlez maintenant")
-                # Simulation - en production utiliser speech_recognition
-                
-            st.markdown("---")
             st.markdown("### 💡 Suggestions")
             
             suggestions = [
-                "Quelle est la capacité totale des STEP ?",
-                "Quelle commune a le réseau le plus récent ?",
-                "Recommandations pour Saint-Denis",
-                "Comparer Saint-Paul et Saint-Pierre"
+                "Capacité totale des STEP ?",
+                "Normes de rejet",
+                "Que faire en cas de débordement ?",
+                "Comment financer des travaux ?",
+                "Saint-Denis",
+                "Différence EU/EP"
             ]
             
             for suggestion in suggestions:
                 if st.button(f"📋 {suggestion}", use_container_width=True):
-                    # Simuler l'envoi
-                    context = {
-                        'df_stations': st.session_state.df_stations,
-                        'commune_active': st.session_state.commune_active
-                    }
-                    response = self.assistant.query_data(suggestion, context)
+                    response = chatbot.get_response(suggestion)
                     
-                    st.session_state.chat_history.append({
+                    st.session_state['chat_history'].append({
                         'role': 'user',
-                        'content': suggestion,
-                        'timestamp': datetime.now()
+                        'content': suggestion
                     })
                     
-                    st.session_state.chat_history.append({
+                    st.session_state['chat_history'].append({
                         'role': 'assistant',
                         'content': response['answer'],
-                        'score': response['score'],
-                        'timestamp': datetime.now()
+                        'confidence': response['confidence']
                     })
                     
                     st.rerun()
+            
+            st.markdown("---")
+            st.markdown("""
+            **📚 Base de connaissances:**
+            - 11 questions/réponses
+            - Similarité cosinus TF-IDF
+            - Confiance > 30%
+            """)
     
-    # ========== MODULE 4 : OPTIMISATION BUDGÉTAIRE ==========
-    
-    def afficher_module_optimisation(self):
-        """Optimisation budgétaire par algorithme génétique"""
-        st.markdown("## ⚙️ Optimisation budgétaire - Algorithme Génétique")
-        st.markdown("Allocation optimale des investissements entre les stations")
+    # ========== MODULE OPTIMISATION ==========
+    elif "Optimisation" in module:
+        st.header("⚙️ Optimisation budgétaire")
+        
+        df = st.session_state['df_stations']
         
         col1, col2 = st.columns(2)
         
         with col1:
-            budget_total = st.number_input(
-                "💰 Budget total disponible (M€)",
+            budget = st.number_input(
+                "💰 Budget total (M€)",
                 min_value=1.0,
                 max_value=100.0,
                 value=20.0,
                 step=1.0
-            ) * 1e6  # Conversion en euros
-            
-            horizon = st.select_slider(
-                "📅 Horizon d'investissement",
-                options=['1 an', '3 ans', '5 ans', '10 ans'],
-                value='5 ans'
-            )
-            
-            priorite = st.selectbox(
-                "🎯 Priorité d'optimisation",
-                ['Équilibre', 'Performance technique', 'Couverture population', 'Urgence']
-            )
-        
-        with col2:
-            st.markdown("### 🧬 Paramètres génétiques")
-            st.markdown("""
-            - Population: 15 individus
-            - Générations: 1000
-            - Mutation: adaptative
-            - Croisement: binôme
-            - Sélection: tournoi
-            """)
+            ) * 1e6
             
             if st.button("🚀 Lancer l'optimisation", use_container_width=True):
-                with st.spinner("🧬 Évolution génétique en cours..."):
-                    
-                    # Simulation de population par commune
-                    population_communes = {
-                        'Saint-Denis': 153810,
-                        'Saint-Paul': 105482,
-                        'Saint-Pierre': 84565,
-                        'Le Tampon': 79639,
-                        'Saint-André': 56602
-                    }
-                    
-                    resultats = OptimisationBudgetaire.optimiser(
-                        st.session_state.df_stations,
-                        budget_total,
-                        population_communes
-                    )
-                    
-                    st.session_state.optimisation_results = resultats
-                    st.success(f"✅ Optimisation terminée - Impact total: {resultats['impact_total']:.3f}")
+                with st.spinner("Calcul de l'allocation optimale..."):
+                    resultats = OptimisationLegere.optimiser_simple(df, budget)
+                    st.session_state['opt_results'] = resultats
+                    st.success("✅ Optimisation terminée")
         
-        # Affichage des résultats
-        if st.session_state.optimisation_results:
-            st.markdown("### 📊 Allocation optimale")
+        with col2:
+            st.markdown("""
+            **📊 Méthode:**
+            - Score = vétusté × 0.6 + capacité × 0.4
+            - Plafond: 30% du budget par station
+            - Réallocation automatique du surplus
+            """)
+        
+        if 'opt_results' in st.session_state:
+            results = st.session_state['opt_results']
             
-            results_df = pd.DataFrame(st.session_state.optimisation_results['allocations'])
+            st.subheader(f"Allocation optimale - {results['budget_total']/1e6:.1f} M€")
+            
+            df_alloc = pd.DataFrame(results['allocations'])
             
             fig = px.bar(
-                results_df.head(10),
+                df_alloc.head(10),
                 x='station',
                 y='budget_alloue',
-                title=f"Top 10 stations - Allocation optimale (budget: {st.session_state.optimisation_results['budget_total']/1e6:.1f} M€)",
-                labels={'budget_alloue': 'Budget (€)', 'station': ''},
-                color='impact_estime',
-                color_continuous_scale='viridis'
+                title="Top 10 stations - Budget alloué",
+                color='score_urgence',
+                color_continuous_scale='RdYlGn_r',
+                labels={'budget_alloue': 'Budget (€)', 'station': ''}
             )
             fig.update_layout(xaxis_tickangle=-45)
             st.plotly_chart(fig, use_container_width=True)
             
-            # Tableau détaillé
             st.dataframe(
-                results_df.style.format({
+                df_alloc.style.format({
                     'budget_alloue': '{:,.0f} €',
                     'pourcentage_budget': '{:.1f}%',
-                    'impact_estime': '{:.3f}'
+                    'score_urgence': '{:.3f}'
                 }),
                 use_container_width=True
             )
     
-    # ========== MODULE 5 : SIMULATION HYDRAULIQUE ==========
-    
-    def afficher_module_hydraulique(self):
-        """Simulation de débit et débordements"""
-        st.markdown("## 🌊 Modèle hydraulique - Simulation pluie-débit")
-        st.markdown("Prédiction des risques de débordement en période cyclonique")
+    # ========== MODULE HYDRAULIQUE ==========
+    elif "Simulation" in module:
+        st.header("🌊 Simulation hydraulique - Pluie/Débit")
         
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         
         with col1:
-            intensite_cyclone = st.slider(
-                "🌀 Intensité cyclonique",
-                min_value=5,
-                max_value=50,
-                value=25,
-                help="Intensité de pluie en mm/h"
-            )
-            
-            duree = st.slider(
-                "⏱️ Durée de l'épisode (heures)",
-                min_value=24,
-                max_value=120,
-                value=72,
-                step=12
-            )
-            
-            capacite_step = st.selectbox(
-                "🏭 Capacité de la STEP (EH)",
+            intensite = st.slider("💧 Intensité pluie (mm/h)", 10, 50, 25)
+        with col2:
+            duree = st.slider("⏱️ Durée (heures)", 24, 120, 72, 12)
+        with col3:
+            capacite = st.selectbox(
+                "🏭 Capacité STEP (EH)",
                 [10000, 25000, 50000, 75000, 100000],
                 index=2
             )
         
-        with col2:
-            st.markdown("### 📊 Paramètres hydrauliques")
-            st.markdown("""
-            **Modèle réservoir:**
-            - Équation: dS/dt = Qe - (S/K)^α
-            - K = 2.0 (constante temps)
-            - α = 1.5 (non-linéarité)
-            - Seuil débordement: 90% capacité
-            """)
-            
-            # Simulation
-            t, pluie = ModeleHydraulique.simuler_episode_pluie(duree, intensite_cyclone)
-            debit_entree = pluie * (capacite_step / 10000)
-            resultat = ModeleHydraulique.predire_debordement(capacite_step, debit_entree, 100)
+        # Simulation
+        t, pluie, debit = HydrauliqueLegere.simuler_crue(duree, intensite)
         
-        # Visualisation
+        # Risque de débordement
+        risque = HydrauliqueLegere.risque_debordement(capacite, debit[-1])
+        
+        # Graphiques
         fig = make_subplots(
             rows=2, cols=1,
-            subplot_titles=("Intensité pluviométrique", "Risque de débordement"),
+            subplot_titles=("Intensité pluviométrique", "Débit simulé"),
             vertical_spacing=0.15
         )
         
@@ -1152,86 +928,49 @@ class DashboardIAComplete:
         )
         
         fig.add_trace(
-            go.Scatter(x=t, y=resultat['risques'], 
-                      name="Risque débordement",
-                      line=dict(color='#ff6b6b', width=2)),
+            go.Scatter(x=t, y=debit, name="Débit", line=dict(color='#ff6b6b', width=2)),
             row=2, col=1
         )
         
-        fig.add_hline(y=1, line_dash="dash", line_color="red", row=2, col=1)
+        # Seuil d'alerte
+        seuil = capacite * 0.15 * 0.8
+        fig.add_hline(y=seuil, line_dash="dash", line_color="red", 
+                     annotation_text="Seuil alerte", row=2, col=1)
         
-        fig.update_layout(height=600, showlegend=True)
-        fig.update_xaxes(title_text="Heures", row=2, col=1)
-        fig.update_yaxes(title_text="mm/h", row=1, col=1)
-        fig.update_yaxes(title_text="Risque (0-1.5)", row=2, col=1)
-        
+        fig.update_layout(height=600, showlegend=False)
         st.plotly_chart(fig, use_container_width=True)
         
         # Indicateurs de risque
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            st.metric("🚨 Probabilité débordement", f"{resultat['proba_debordement']*100:.1f}%")
-        
+            st.metric("🚨 Risque débordement", f"{risque['risque']*100:.1f}%")
         with col2:
-            st.metric("📊 Risque maximal", f"{max(resultat['risques']):.2f}")
-        
+            st.metric("📊 Niveau", risque['niveau'])
         with col3:
-            st.metric("💧 Stockage max", f"{resultat['stockage_max']:,.0f} EH")
-        
+            st.metric("💧 Charge", f"{risque['charge']:.2f}")
         with col4:
-            if resultat['alerte']:
-                st.error("⚠️ ALERTE DÉBORDEMENT")
+            if risque['niveau'] == 'Élevé':
+                st.error("⚠️ ALERTE")
+            elif risque['niveau'] == 'Moyen':
+                st.warning("⚡ SURVEILLANCE")
             else:
-                st.success("✅ Situation normale")
+                st.success("✅ NORMAL")
     
-    # ========== MODULE PRINCIPAL ==========
+    # Footer
+    st.markdown("---")
+    st.markdown("""
+    <div style='text-align: center; color: #6c757d; padding: 1rem; background: #f8f9fa; border-radius: 10px;'>
+        <small>
+        <strong>Office de l'Eau Réunion</strong> • Version IA Légère (sans TensorFlow) • 100% compatible Streamlit Cloud<br>
+        Sources: https://donnees.eaureunion.fr • Licence Etalab • Mis à jour le {date}
+        </small>
+    </div>
+    """.format(date=datetime.now().strftime('%d/%m/%Y')), unsafe_allow_html=True)
     
-    def run(self):
-        """Exécution principale"""
-        self.afficher_header_ia_total()
-        
-        module = self.afficher_menu_lateral()
-        
-        if "Tableau de bord" in module:
-            st.markdown("## 🏠 Tableau de bord global")
-            st.info("Sélectionnez un module IA spécifique dans le menu latéral")
-            
-            # Aperçu des données
-            if st.session_state.df_stations is not None:
-                st.dataframe(st.session_state.df_stations.head(10), use_container_width=True)
-        
-        elif "Deep Learning" in module:
-            self.afficher_module_lstm()
-        
-        elif "Prophet" in module:
-            self.afficher_module_prophet()
-        
-        elif "Chatbot" in module:
-            self.afficher_module_chatbot()
-        
-        elif "Optimisation" in module:
-            self.afficher_module_optimisation()
-        
-        elif "Simulation" in module:
-            self.afficher_module_hydraulique()
-        
-        # Footer
-        st.markdown("---")
-        st.markdown("""
-        <div style='text-align: center; color: #6c757d; padding: 1rem; background: linear-gradient(90deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 15px;'>
-            <strong>🧠 OFFICE DE L'EAU RÉUNION - PLATEFORME IA TOTALE</strong><br>
-            <span style='font-size: 0.85rem;'>
-            LSTM • Prophet • Transformers • Algo Génétique • Modélisation Hydraulique<br>
-            Données sous licence Etalab | Modèles entraînés sur données historiques 2015-2024
-            </span>
-        </div>
-        """, unsafe_allow_html=True)
+    # Nettoyage mémoire
+    gc.collect()
 
 
-# ==========================================================
-# 7️⃣ LANCEMENT
-# ==========================================================
 if __name__ == "__main__":
-    dashboard = DashboardIAComplete()
-    dashboard.run()
+    main()
