@@ -13,3 +13,4 @@ geopandas
 shapely
 python-dateutil
 pytz
+chardet
