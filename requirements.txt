@@ -1,60 +1,26 @@
-# requirements_ia_totale.txt
+# requirements_light.txt
+# 100% compatible Streamlit Cloud - Pas de TensorFlow/PyTorch
 
-# ========== CORE ==========
 streamlit==1.29.0
 pandas==2.0.3
 numpy==1.24.3
-python-dotenv==1.0.0
-
-# ========== DEEP LEARNING ==========
-tensorflow==2.13.0
-keras==2.13.1
-torch==2.0.1
-torchvision==0.15.2
-transformers==4.35.0
-
-# ========== DÉTECTION TENDANCES ==========
-prophet==1.1.5
-pystan==3.8.0  # Dépendance Prophet
-holidays==0.36
-
-# ========== OPTIMISATION ==========
-scipy==1.11.3
-scikit-learn==1.3.0
-deap==1.4.1
-pymoo==0.6.0
-
-# ========== CHATBOT & VOCAL ==========
-openai==1.3.0
-speechrecognition==3.10.1
-gtts==2.3.2
-pyaudio==0.2.11
-pyttsx3==2.90
-transformers==4.35.0
-sentencepiece==0.1.99
-accelerate==0.24.1
-
-# ========== HYDRAULIQUE ==========
-scipy==1.11.3
-odeintw==0.0.5
-
-# ========== VISUALISATION ==========
 plotly==5.17.0
-matplotlib==3.7.3
-seaborn==0.12.2
-folium==0.14.0
-streamlit-folium==0.15.0
-
-# ========== TRAITEMENT DONNÉES ==========
 requests==2.31.0
-chardet==5.2.0
-openpyxl==3.1.2
-xlrd==2.0.1
-pyarrow==12.0.1
 
-# ========== UTILITAIRES ==========
-tqdm==4.66.1
-joblib==1.3.2
-cachetools==5.3.1
+# Machine Learning léger
+scikit-learn==1.3.0
+scipy==1.11.3
+
+# Séries temporelles
+prophet==1.1.5
+pystan==3.8.0
+statsmodels==0.14.0
+
+# NLP léger
+nltk==3.8.1
+
+# Utilitaires
+psutil==5.9.5
 python-dateutil==2.8.2
 pytz==2023.3
+chardet==5.2.0
