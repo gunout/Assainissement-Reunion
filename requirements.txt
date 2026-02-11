@@ -1,26 +1,6 @@
-# requirements_light.txt
-# 100% compatible Streamlit Cloud - Pas de TensorFlow/PyTorch
-
 streamlit==1.29.0
 pandas==2.0.3
 numpy==1.24.3
 plotly==5.17.0
 requests==2.31.0
-
-# Machine Learning léger
-scikit-learn==1.3.0
-scipy==1.11.3
-
-# Séries temporelles
-prophet==1.1.5
-pystan==3.8.0
-statsmodels==0.14.0
-
-# NLP léger
-nltk==3.8.1
-
-# Utilitaires
 psutil==5.9.5
-python-dateutil==2.8.2
-pytz==2023.3
-chardet==5.2.0
